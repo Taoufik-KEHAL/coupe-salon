@@ -1,4 +1,11 @@
 import { db } from '@/lib/firebase';
+import {
+  isMockMode,
+  mockCreateAppointment,
+  mockDeleteAppointment,
+  mockUpdateAppointment,
+  subscribeAppointments,
+} from '@/lib/mockBackend';
 import type { Appointment, AppointmentInput } from '@/types';
 import {
   addDoc,
@@ -27,6 +34,12 @@ export function useAppointments() {
       setLoading(false);
       return;
     }
+    if (isMockMode) {
+      return subscribeAppointments(user.uid, (next) => {
+        setAppointments(next);
+        setLoading(false);
+      });
+    }
     const q = query(
       collection(db, APPOINTMENTS_COLLECTION),
       where('ownerId', '==', user.uid),
@@ -47,6 +60,7 @@ export async function createAppointment(
   clientName: string,
   input: AppointmentInput
 ) {
+  if (isMockMode) return mockCreateAppointment(ownerId, clientName, input);
   return addDoc(collection(db, APPOINTMENTS_COLLECTION), {
     ...input,
     clientName,
@@ -59,9 +73,11 @@ export async function updateAppointment(
   id: string,
   input: Partial<AppointmentInput & { clientName: string }>
 ) {
+  if (isMockMode) return mockUpdateAppointment(id, input);
   return updateDoc(doc(db, APPOINTMENTS_COLLECTION, id), input);
 }
 
 export async function deleteAppointment(id: string) {
+  if (isMockMode) return mockDeleteAppointment(id);
   return deleteDoc(doc(db, APPOINTMENTS_COLLECTION, id));
 }
