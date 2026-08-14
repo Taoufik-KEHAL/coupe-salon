@@ -39,6 +39,26 @@ npx expo start
 
 Scanne le QR code avec l'app **Expo Go** (Android) pour tester directement sur ton téléphone — aucune installation d'Android Studio n'est nécessaire pour le développement.
 
+### Mode démo (sans Firebase)
+
+Si `.env` est absent ou que `EXPO_PUBLIC_FIREBASE_API_KEY` n'est pas renseignée, l'app bascule automatiquement sur un backend local (`lib/mockBackend.ts`) : connexion avec n'importe quel e-mail/mot de passe (6 caractères min.), clients et rendez-vous de démonstration stockés dans `AsyncStorage`. Pratique pour valider l'interface sans créer de projet Firebase :
+
+```bash
+npx expo start --web
+```
+
+## Générer un APK
+
+Ce projet est en workflow managé Expo (pas de dossier `android/`) : la génération d'APK passe par [EAS Build](https://docs.expo.dev/build/introduction/) (build cloud) — pas besoin d'Android Studio.
+
+```bash
+npm install -g eas-cli
+eas login
+eas build -p android --profile preview   # profil "preview" = APK installable directement
+```
+
+`eas.json` est déjà configuré avec un profil `preview` qui produit un `.apk` (au lieu du `.aab` de `production`, destiné au Play Store). Le lien de téléchargement de l'APK s'affiche à la fin du build.
+
 ## Structure du projet
 
 ```

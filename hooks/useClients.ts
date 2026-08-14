@@ -1,4 +1,5 @@
 import { db } from '@/lib/firebase';
+import { isMockMode, mockCreateClient, mockDeleteClient, mockUpdateClient, subscribeClients } from '@/lib/mockBackend';
 import type { Client, ClientInput } from '@/types';
 import {
   addDoc,
@@ -27,6 +28,12 @@ export function useClients() {
       setLoading(false);
       return;
     }
+    if (isMockMode) {
+      return subscribeClients(user.uid, (next) => {
+        setClients(next);
+        setLoading(false);
+      });
+    }
     const q = query(
       collection(db, CLIENTS_COLLECTION),
       where('ownerId', '==', user.uid),
@@ -43,6 +50,7 @@ export function useClients() {
 }
 
 export async function createClient(ownerId: string, input: ClientInput) {
+  if (isMockMode) return mockCreateClient(ownerId, input);
   return addDoc(collection(db, CLIENTS_COLLECTION), {
     ...input,
     ownerId,
@@ -51,9 +59,11 @@ export async function createClient(ownerId: string, input: ClientInput) {
 }
 
 export async function updateClient(id: string, input: Partial<ClientInput>) {
+  if (isMockMode) return mockUpdateClient(id, input);
   return updateDoc(doc(db, CLIENTS_COLLECTION, id), input);
 }
 
 export async function deleteClient(id: string) {
+  if (isMockMode) return mockDeleteClient(id);
   return deleteDoc(doc(db, CLIENTS_COLLECTION, id));
 }

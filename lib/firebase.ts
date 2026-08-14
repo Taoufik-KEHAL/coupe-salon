@@ -7,7 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getReactNativePersistence } from '@firebase/auth';
 import { getApp, getApps, initializeApp } from 'firebase/app';
 import { getAuth, initializeAuth, type Auth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { getFirestore, type Firestore } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
@@ -18,18 +18,34 @@ const firebaseConfig = {
   appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
 };
 
-const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+// Skip initialization entirely when unconfigured: initializeAuth talks to
+// the Firebase Auth backend as soon as it runs and throws auth/invalid-api-key
+// with an empty config, which would crash the app even in mock mode (see
+// lib/mockBackend.ts), where auth/db are never actually called.
+const isConfigured = !!firebaseConfig.apiKey;
 
-let auth: Auth;
-try {
-  auth = initializeAuth(app, {
-    persistence: getReactNativePersistence(AsyncStorage),
-  });
-} catch {
-  // initializeAuth throws if it was already called for this app (e.g. Fast Refresh) — reuse it.
-  auth = getAuth(app);
+let _app: ReturnType<typeof initializeApp> | undefined;
+let _auth: Auth | undefined;
+let _db: Firestore | undefined;
+
+if (isConfigured) {
+  _app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+  try {
+    _auth = initializeAuth(_app, {
+      persistence: getReactNativePersistence(AsyncStorage),
+    });
+  } catch {
+    // initializeAuth throws if it was already called for this app (e.g. Fast Refresh) — reuse it.
+    _auth = getAuth(_app);
+  }
+  _db = getFirestore(_app);
 }
 
-const db = getFirestore(app);
+// auth/db are only ever dereferenced on the non-mock code paths (guarded by
+// isMockMode in the hooks), where isConfigured is guaranteed true — asserted
+// non-null here so those call sites don't need casts.
+const app = _app;
+const auth = _auth as Auth;
+const db = _db as Firestore;
 
 export { app, auth, db };
