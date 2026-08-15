@@ -59,6 +59,29 @@ lib/
   theme.ts                   # Palette de couleurs de l'app
 ```
 
+## Générer un APK (EAS Build)
+
+L'APK est compilé dans le cloud via [EAS Build](https://expo.dev/eas), sans besoin d'Android Studio local.
+
+### En local
+
+```bash
+npx eas-cli build --platform android --profile preview
+```
+
+Le lien de téléchargement de l'APK s'affiche à la fin du build (aussi visible sur [expo.dev](https://expo.dev/accounts/tfkkehal/projects/coupe-salon/builds)).
+
+### Depuis GitHub Actions
+
+Le workflow [`.github/workflows/eas-build.yml`](.github/workflows/eas-build.yml) permet de lancer un build depuis l'onglet **Actions** du repo (bouton **Run workflow**), sans rien installer localement.
+
+Configuration requise (une seule fois) :
+1. Crée un token d'accès Expo : [expo.dev/accounts/tfkkehal/settings/access-tokens](https://expo.dev/accounts/tfkkehal/settings/access-tokens) → **Create token** (donne-lui un nom du type `github-actions`)
+2. Ajoute-le comme secret du repo GitHub : **Settings > Secrets and variables > Actions > New repository secret**, nom `EXPO_TOKEN`, colle le token
+3. Les variables Firebase (`EXPO_PUBLIC_FIREBASE_*`) sont déjà configurées côté EAS (environnements `preview`/`production`, visibles sur `eas env:list preview`) — pas besoin de les redéfinir dans GitHub.
+
+Ensuite : onglet **Actions** → **EAS Build Android APK** → **Run workflow**.
+
 ## Notes
 
 - Les données sont scopées par utilisateur (`ownerId`) : si plusieurs employés doivent partager les mêmes clients/rendez-vous, il faudra faire évoluer le modèle de données (ex. `salonId` partagé).
