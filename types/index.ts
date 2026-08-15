@@ -29,3 +29,30 @@ export type AppointmentInput = Omit<
   Appointment,
   'id' | 'createdAt' | 'ownerId' | 'clientName'
 >;
+
+export type UserRole = 'client' | 'staff';
+
+export type Service = {
+  id: string;
+  name: string;
+  photoUrl: string;
+  durationMinutes: number;
+  price: number;
+  featured?: boolean;
+};
+
+export type Product = {
+  id: string;
+  name: string;
+  photoUrl: string;
+  price: number;
+};
+
+export type CartItem = {
+  id: string;
+  kind: 'service' | 'product';
+  name: string;
+  price: number;
+  photoUrl: string;
+  quantity: number;
+};

@@ -1,6 +1,10 @@
 # Salon Manager
 
-Application Android (React Native / Expo) de gestion d'un salon de coiffure : fiches clients et agenda des rendez-vous, avec synchronisation cloud via Firebase.
+Application Android (React Native / Expo) pour un salon de coiffure, avec deux espaces selon le rôle choisi à l'inscription :
+- **Coiffeur(se)** : gestion des fiches clients et de l'agenda des rendez-vous.
+- **Client(e)** : vitrine des services et produits avec panier (paiement sur place, pas de paiement en ligne).
+
+Synchronisation cloud via Firebase.
 
 ## Stack
 
@@ -43,21 +47,31 @@ Scanne le QR code avec l'app **Expo Go** (Android) pour tester directement sur t
 
 ```
 app/
-  (auth)/login.tsx        # Connexion / création de compte
-  (tabs)/index.tsx         # Agenda des rendez-vous
-  (tabs)/clients.tsx       # Liste des clients
-  client/[id].tsx          # Fiche client + historique
-  client/new.tsx           # Ajout d'un client
-  appointment/[id].tsx     # Détail / édition d'un rendez-vous
-  appointment/new.tsx      # Ajout d'un rendez-vous
+  (auth)/login.tsx          # Connexion / création de compte (+ choix du rôle)
+  (staff)/index.tsx          # [Coiffeur(se)] Agenda des rendez-vous
+  (staff)/clients.tsx        # [Coiffeur(se)] Liste des clients
+  client/[id].tsx            # [Coiffeur(se)] Fiche client + historique
+  client/new.tsx             # [Coiffeur(se)] Ajout d'un client
+  appointment/[id].tsx       # [Coiffeur(se)] Détail / édition d'un rendez-vous
+  appointment/new.tsx        # [Coiffeur(se)] Ajout d'un rendez-vous
+  (client)/index.tsx         # [Client(e)] Accueil — vitrine des services
+  (client)/boutique.tsx      # [Client(e)] Produits en vente
+  (client)/panier.tsx        # [Client(e)] Panier (sans paiement en ligne)
+  (client)/contact.tsx       # [Client(e)] Coordonnées du salon
+  (client)/profil.tsx        # [Client(e)] Profil / déconnexion
 hooks/
-  useAuth.tsx               # Contexte d'authentification Firebase
+  useAuth.tsx               # Contexte d'authentification Firebase + rôle
   useClients.ts             # CRUD + écoute temps réel des clients
   useAppointments.ts        # CRUD + écoute temps réel des rendez-vous
+  useCart.ts                # Panier client (état local, non persisté)
 lib/
   firebase.ts                # Initialisation Firebase (Auth + Firestore)
   theme.ts                   # Palette de couleurs de l'app
+  catalog.ts                 # Services et produits (données locales + photos Unsplash)
+  salonInfo.ts                # Coordonnées du salon (à adapter)
 ```
+
+Le rôle (`client` ou `staff`) est stocké dans Firestore (`users/{uid}`) et choisi lors de l'inscription ; il détermine quel espace s'affiche après connexion.
 
 ## Générer un APK (EAS Build)
 

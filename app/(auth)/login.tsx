@@ -1,5 +1,6 @@
 import { colors } from '@/lib/theme';
 import { useAuth } from '@/hooks/useAuth';
+import type { UserRole } from '@/types';
 import { useState } from 'react';
 import {
   ActivityIndicator,
@@ -32,6 +33,7 @@ function friendlyError(code: string): string {
 export default function LoginScreen() {
   const { login, register } = useAuth();
   const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [role, setRole] = useState<UserRole>('client');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -48,7 +50,7 @@ export default function LoginScreen() {
       if (mode === 'login') {
         await login(email.trim(), password);
       } else {
-        await register(email.trim(), password);
+        await register(email.trim(), password, role);
       }
     } catch (e: any) {
       setError(friendlyError(e?.code ?? ''));
@@ -68,6 +70,26 @@ export default function LoginScreen() {
       </View>
 
       <View style={styles.form}>
+        {mode === 'register' && (
+          <View style={styles.roleRow}>
+            <Pressable
+              style={[styles.roleChip, role === 'client' && styles.roleChipActive]}
+              onPress={() => setRole('client')}
+            >
+              <Text style={[styles.roleChipText, role === 'client' && styles.roleChipTextActive]}>
+                Je suis client(e)
+              </Text>
+            </Pressable>
+            <Pressable
+              style={[styles.roleChip, role === 'staff' && styles.roleChipActive]}
+              onPress={() => setRole('staff')}
+            >
+              <Text style={[styles.roleChipText, role === 'staff' && styles.roleChipTextActive]}>
+                Je suis coiffeur(se)
+              </Text>
+            </Pressable>
+          </View>
+        )}
         <TextInput
           style={styles.input}
           placeholder="E-mail"
@@ -172,4 +194,20 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontSize: 14,
   },
+  roleRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  roleChip: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  roleChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  roleChipText: { fontSize: 14, fontWeight: '600', color: colors.text },
+  roleChipTextActive: { color: '#fff' },
 });
