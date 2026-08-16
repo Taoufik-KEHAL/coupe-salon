@@ -1,5 +1,7 @@
 # Salon Manager
 
+> ⚠️ **Cette version React Native est remplacée par la réécriture Flutter dans [`flutter_app/`](flutter_app/README.md)** (même projet Firebase, même modèle de données, même périmètre fonctionnel). Ce dossier racine est conservé tel quel pour référence le temps de la transition, mais les nouvelles fonctionnalités doivent être développées côté Flutter.
+
 Application Android (React Native / Expo) pour un salon de coiffure, avec trois rôles :
 - **Client** : parcourt les services/produits, réserve un créneau, gère son panier (paiement sur place), consulte ses réservations, laisse un avis.
 - **Coiffeur** : consulte le planning partagé (tous les coiffeurs, temps réel), valide les paniers des clients, consulte la liste des clients.

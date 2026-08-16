@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "274480028244",
+    "project_id": "salon-97587",
+    "storage_bucket": "salon-97587.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:274480028244:android:581f4752308f8d2def2bc1",
+        "android_client_info": {
+          "package_name": "com.coupesalon.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "274480028244-d0fsgfb750dnftqvt6bnmshea2ggcjoi.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCJv86i_XFBW1-tuB_oBaD-Cz1RwcI0BOw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "274480028244-d0fsgfb750dnftqvt6bnmshea2ggcjoi.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
