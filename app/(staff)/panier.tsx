@@ -1,3 +1,4 @@
+import { useAuth } from '@/hooks/useAuth';
 import { setReservationStatus, useReservationsByStatus } from '@/hooks/useReservations';
 import { colors } from '@/lib/theme';
 import type { Reservation } from '@/types';
@@ -25,6 +26,7 @@ function ReservationCard({ reservation, action }: { reservation: Reservation; ac
 }
 
 export default function ValiderPanierScreen() {
+  const { user, role } = useAuth();
   const { reservations: enAttente, loading: loadingAttente } = useReservationsByStatus('en_attente');
   const { reservations: enCours, loading: loadingCours } = useReservationsByStatus('en_cours');
 
@@ -35,6 +37,12 @@ export default function ValiderPanierScreen() {
       </View>
     );
   }
+
+  // Seul le coiffeur assigné à la réservation (ou l'admin) peut confirmer
+  // qu'elle est terminée — une commande produits seuls (sans coiffeur) reste
+  // ouverte à tout le staff.
+  const canComplete = (r: Reservation) =>
+    r.coiffeurId === null || r.coiffeurId === user?.uid || role === 'admin';
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ padding: 16, paddingBottom: 32 }}>
@@ -67,18 +75,26 @@ export default function ValiderPanierScreen() {
             key={r.id}
             reservation={r}
             action={
-              <Pressable
-                style={[styles.actionButton, styles.actionButtonSuccess]}
-                onPress={() => setReservationStatus(r.id, 'terminee')}
-              >
-                <Text style={styles.actionButtonText}>Terminer</Text>
-              </Pressable>
+              canComplete(r) ? (
+                <Pressable
+                  style={[styles.actionButton, styles.actionButtonSuccess]}
+                  onPress={() => setReservationStatus(r.id, 'terminee')}
+                >
+                  <Text style={styles.actionButtonText}>Confirmer l'accomplissement</Text>
+                </Pressable>
+              ) : (
+                <Text style={styles.waitingText}>En attente de confirmation par {reservationCoiffeurLabel(r)}</Text>
+              )
             }
           />
         ))
       )}
     </ScrollView>
   );
+}
+
+function reservationCoiffeurLabel(r: Reservation) {
+  return r.coiffeurName ?? 'le coiffeur assigné';
 }
 
 const styles = StyleSheet.create({
@@ -109,4 +125,5 @@ const styles = StyleSheet.create({
   },
   actionButtonSuccess: { backgroundColor: colors.success },
   actionButtonText: { color: '#fff', fontSize: 13, fontWeight: '600' },
+  waitingText: { fontSize: 12, color: colors.textMuted, fontStyle: 'italic', marginTop: 8 },
 });

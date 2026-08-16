@@ -94,12 +94,30 @@ service cloud.firestore {
         );
 
       allow update: if isSignedIn() && (
-        (isStaff() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']))
-        || (
+        // Le client peut annuler sa propre réservation, tant que le service
+        // n'a pas commencé.
+        (
           resource.data.clientId == request.auth.uid
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
           && request.resource.data.status == 'annulee'
           && resource.data.status in ['confirmee', 'en_attente']
+        )
+        // N'importe quel staff peut faire avancer la file (client arrivé,
+        // service en cours) ou annuler.
+        || (
+          isStaff()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+          && request.resource.data.status in ['en_attente', 'en_cours', 'annulee']
+        )
+        // Mais seul le coiffeur assigné (ou l'admin) confirme
+        // l'accomplissement du service/de la vente — un(e) collègue ne peut
+        // pas clôturer le rendez-vous de quelqu'un d'autre. Les commandes
+        // produits seuls (sans coiffeur assigné) restent ouvertes à tout
+        // le staff.
+        || (
+          (resource.data.coiffeurId == null ? isStaff() : (resource.data.coiffeurId == request.auth.uid || isAdmin()))
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+          && request.resource.data.status == 'terminee'
         )
       );
     }

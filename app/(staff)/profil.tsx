@@ -32,6 +32,7 @@ export default function StaffProfilScreen() {
           <LinkRow icon="cut-outline" label="Services & produits" onPress={() => router.push('/admin/services')} />
           <LinkRow icon="people-outline" label="Coiffeurs" onPress={() => router.push('/admin/coiffeurs')} />
           <LinkRow icon="person-circle-outline" label="Utilisateurs" onPress={() => router.push('/admin/utilisateurs')} />
+          <LinkRow icon="bar-chart-outline" label="Statistiques" onPress={() => router.push('/admin/statistiques')} />
         </View>
       )}
 

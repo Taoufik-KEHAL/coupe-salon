@@ -48,6 +48,7 @@ function RootNavigator() {
         <Stack.Screen name="admin/services" options={{ headerShown: true, title: 'Services & produits' }} />
         <Stack.Screen name="admin/coiffeurs" options={{ headerShown: true, title: 'Coiffeurs' }} />
         <Stack.Screen name="admin/utilisateurs" options={{ headerShown: true, title: 'Utilisateurs' }} />
+        <Stack.Screen name="admin/statistiques" options={{ headerShown: true, title: 'Statistiques' }} />
       </Stack.Protected>
       <Stack.Protected guard={!!user && role === 'client'}>
         <Stack.Screen name="(client)" />
