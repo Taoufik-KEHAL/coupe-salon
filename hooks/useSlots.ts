@@ -7,6 +7,8 @@ import {
   onSnapshot,
   query,
   runTransaction,
+  setDoc,
+  updateDoc,
   where,
 } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
@@ -46,11 +48,20 @@ export function useReservedTimes(coiffeurId: string | null, date: string | null)
   return { reservedTimes, loading };
 }
 
-// Transaction atomique : vérifie que tous les créneaux nécessaires sont
-// encore libres et, seulement dans ce cas, les marque réservés et crée la
-// réservation — le tout dans la même transaction Firestore. Si un autre
-// client a réservé entre-temps un des créneaux, la transaction échoue
-// proprement (SlotUnavailableError) sans double-réservation.
+// Réserve les créneaux nécessaires pour la durée totale du panier.
+//
+// Implémentation en deux temps :
+//  1. La réservation est créée par une écriture séparée (committée), status
+//     'confirmee'.
+//  2. Une transaction Firestore vérifie ensuite atomiquement que tous les
+//     créneaux nécessaires sont encore libres et, seulement dans ce cas, les
+//     marque réservés en référençant cette réservation.
+// (Les deux étapes ne peuvent PAS être faites dans une seule transaction :
+// les règles de sécurité des créneaux valident la réservation via get(), et
+// Firestore n'expose pas les écritures d'une transaction aux get() faits
+// pendant l'évaluation des règles de cette même transaction.)
+// Si le créneau n'est plus libre, la réservation orpheline est annulée et
+// SlotUnavailableError est levée — sans double-réservation.
 export async function reserveSlots(params: {
   coiffeurId: string;
   coiffeurName: string;
@@ -66,51 +77,53 @@ export async function reserveSlots(params: {
   const slotRefs = times.map((t) => doc(db, 'creneaux', slotId(params.coiffeurId, params.date, t)));
   const reservationRef = doc(collection(db, 'reservations'));
 
-  await runTransaction(db, async (transaction) => {
-    // Toutes les lectures doivent précéder toutes les écritures dans une
-    // transaction Firestore.
-    const snaps = await Promise.all(slotRefs.map((ref) => transaction.get(ref)));
-    if (snaps.some((snap) => snap.exists())) {
-      throw new SlotUnavailableError();
-    }
+  const items: ReservationItem[] = params.items.map((i) => ({
+    id: i.id,
+    kind: i.kind,
+    name: i.name,
+    price: i.price,
+    durationMinutes: i.durationMinutes,
+    quantity: i.quantity,
+  }));
 
-    const items: ReservationItem[] = params.items.map((i) => ({
-      id: i.id,
-      kind: i.kind,
-      name: i.name,
-      price: i.price,
-      durationMinutes: i.durationMinutes,
-      quantity: i.quantity,
-    }));
+  const reservation: Omit<Reservation, 'id'> = {
+    clientId: params.clientId,
+    clientName: params.clientName,
+    coiffeurId: params.coiffeurId,
+    coiffeurName: params.coiffeurName,
+    date: params.date,
+    startTime: params.startTime,
+    slotIds: slotRefs.map((r) => r.id),
+    items,
+    total: params.total,
+    status: 'confirmee',
+    createdAt: Date.now(),
+  };
 
-    const reservation: Omit<Reservation, 'id'> = {
-      clientId: params.clientId,
-      clientName: params.clientName,
-      coiffeurId: params.coiffeurId,
-      coiffeurName: params.coiffeurName,
-      date: params.date,
-      startTime: params.startTime,
-      slotIds: slotRefs.map((r) => r.id),
-      items,
-      total: params.total,
-      status: 'confirmee',
-      createdAt: Date.now(),
-    };
+  await setDoc(reservationRef, reservation);
 
-    // La réservation doit être créée avant les créneaux : les règles de
-    // sécurité de `creneaux` vérifient, via get(), que la réservation
-    // référencée existe déjà et appartient bien à l'auteur de la requête.
-    transaction.set(reservationRef, reservation);
-    slotRefs.forEach((ref, i) => {
-      transaction.set(ref, {
-        coiffeurId: params.coiffeurId,
-        date: params.date,
-        time: times[i],
-        status: 'reserve',
-        reservationId: reservationRef.id,
+  try {
+    await runTransaction(db, async (transaction) => {
+      // Toutes les lectures doivent précéder toutes les écritures dans une
+      // transaction Firestore.
+      const snaps = await Promise.all(slotRefs.map((ref) => transaction.get(ref)));
+      if (snaps.some((snap) => snap.exists())) {
+        throw new SlotUnavailableError();
+      }
+      slotRefs.forEach((ref, i) => {
+        transaction.set(ref, {
+          coiffeurId: params.coiffeurId,
+          date: params.date,
+          time: times[i],
+          status: 'reserve',
+          reservationId: reservationRef.id,
+        });
       });
     });
-  });
+  } catch (e) {
+    await updateDoc(reservationRef, { status: 'annulee' }).catch(() => {});
+    throw e;
+  }
 
   return reservationRef.id;
 }

@@ -38,7 +38,15 @@ Aucun rôle `admin` n'est auto-attribuable depuis l'app (par sécurité) — un 
 2. Dans la console Firebase → Firestore → collection `users` → trouve le document de ce compte (son UID) → modifie le champ `role` à `admin`.
 3. Reconnecte-toi dans l'app : tu as maintenant accès à Profil → Administration.
 
-### 4. Lancer l'application
+### 4. (Optionnel) Générer des données de démonstration
+
+```bash
+node scripts/seed-test-data.mjs
+```
+
+Crée des comptes de test (admin, 2 coiffeurs, 1 client), importe le catalogue de démarrage, et place 2-3 réservations réelles (via la même transaction que l'app) pour avoir tout de suite quelque chose à voir dans le Planning. Tous les comptes utilisent le mot de passe `TestSalon123!`. Script idempotent (relançable sans dupliquer les données) ; ne fonctionne pour l'étape admin que sur un projet tout neuf, sans admin existant (voir commentaires dans le script).
+
+### 5. Lancer l'application
 
 ```bash
 npx expo start
@@ -66,11 +74,13 @@ Scanne le QR code avec **Expo Go** (Android) pour tester sur ton téléphone.
 
 Le cahier des charges demandait une Cloud Function callable avec `runTransaction` pour garantir qu'un créneau ne soit jamais réservé deux fois. **Ce projet n'utilise pas de Cloud Functions** (elles nécessitent le plan payant Firebase "Blaze" — carte bancaire requise même si l'usage reste gratuit — ce qui a été explicitement écarté).
 
-À la place : [hooks/useSlots.ts](hooks/useSlots.ts) exécute la transaction directement depuis le client avec `runTransaction`, et [firestore.rules](firestore.rules) empêche toute écriture directe qui contournerait la logique de réservation :
-- un document `creneaux/{id}` ne peut être **créé** que si la réservation qu'il référence existe déjà (créée dans la même transaction) et appartient à l'auteur de la requête ;
-- il ne peut jamais être **mis à jour** (seulement créé ou supprimé) — impossible donc de "voler" un créneau déjà pris.
+À la place, [hooks/useSlots.ts](hooks/useSlots.ts) procède en deux temps :
+1. La réservation est créée par une écriture séparée (`status: 'confirmee'`).
+2. Une transaction Firestore (`runTransaction`) relit ensuite tous les créneaux nécessaires et, seulement s'ils sont tous encore libres, les crée en les référençant à cette réservation. Si un créneau est déjà pris, la transaction échoue, la réservation orpheline est annulée, et le client reçoit une erreur `SlotUnavailableError` propre — jamais de double réservation.
 
-Comme une transaction Firestore relit les documents au moment du commit, si deux clients tentent de réserver le même créneau, seule la première transaction committée réussit ; la seconde échoue proprement côté client avec une erreur `SlotUnavailableError`, sans jamais écrire de double réservation. C'est une garantie plus faible qu'une Cloud Function (un client qui modifierait l'app pourrait théoriquement contourner certaines vérifications), mais suffisante pour ce contexte et sans coût d'infrastructure.
+Ces deux étapes ne peuvent **pas** être fusionnées en une seule transaction : [firestore.rules](firestore.rules) valide chaque création de `creneaux/{id}` via `get()` sur la réservation référencée (elle doit exister et appartenir à l'auteur de la requête) — or Firestore n'expose pas les écritures d'une transaction aux `get()` évalués par les règles pendant cette même transaction (vérifié empiriquement, contrairement à l'hypothèse initiale). Un `creneaux/{id}` ne peut par ailleurs jamais être **mis à jour** (seulement créé ou supprimé) — impossible donc de "voler" un créneau déjà pris en le réécrivant.
+
+C'est une garantie plus faible qu'une Cloud Function (un client qui modifierait l'app pourrait théoriquement contourner certaines vérifications, et une réservation peut rester brièvement orpheline si l'appareil perd la connexion entre les deux étapes), mais suffisante pour ce contexte et sans coût d'infrastructure.
 
 ## Structure du projet
 

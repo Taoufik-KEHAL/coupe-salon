@@ -28,7 +28,14 @@ service cloud.firestore {
     // --- Comptes ---
 
     match /users/{uid} {
-      allow read, write: if isSelf(uid) || isAdmin();
+      allow read: if isSelf(uid) || isAdmin();
+
+      // Un compte ne peut jamais s'auto-promouvoir admin : le rôle
+      // choisissable par soi-même est limité à client/coiffeur. Devenir
+      // admin ne se fait que par un admin existant (isAdmin(), illimité).
+      allow create: if isSelf(uid) && request.resource.data.role in ['client', 'coiffeur'];
+      allow update: if isAdmin()
+        || (isSelf(uid) && resource.data.role != 'admin' && request.resource.data.role in ['client', 'coiffeur']);
     }
 
     match /clients/{uid} {
