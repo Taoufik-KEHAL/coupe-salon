@@ -40,10 +40,10 @@ export default function ClientTabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="contact"
+        name="reservations"
         options={{
-          title: 'Contact',
-          tabBarIcon: ({ color, size }) => <Ionicons name="location-outline" size={size} color={color} />,
+          title: 'Réservations',
+          tabBarIcon: ({ color, size }) => <Ionicons name="time-outline" size={size} color={color} />,
         }}
       />
       <Tabs.Screen

@@ -15,7 +15,7 @@ function RoleFallback() {
       <Pressable style={styles.fallbackButton} onPress={() => setUserRole('client')}>
         <Text style={styles.fallbackButtonText}>Je suis client(e)</Text>
       </Pressable>
-      <Pressable style={styles.fallbackButton} onPress={() => setUserRole('staff')}>
+      <Pressable style={styles.fallbackButton} onPress={() => setUserRole('coiffeur')}>
         <Text style={styles.fallbackButtonText}>Je suis coiffeur(se)</Text>
       </Pressable>
     </View>
@@ -24,6 +24,7 @@ function RoleFallback() {
 
 function RootNavigator() {
   const { user, role, initializing } = useAuth();
+  const isStaff = role === 'coiffeur' || role === 'admin';
 
   if (initializing) {
     return (
@@ -39,15 +40,18 @@ function RootNavigator() {
 
   return (
     <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Protected guard={!!user && role === 'staff'}>
+      <Stack.Protected guard={!!user && isStaff}>
         <Stack.Screen name="(staff)" />
         <Stack.Screen name="client/[id]" options={{ headerShown: true, title: 'Client' }} />
-        <Stack.Screen name="client/new" options={{ headerShown: true, title: 'Nouveau client', presentation: 'modal' }} />
-        <Stack.Screen name="appointment/[id]" options={{ headerShown: true, title: 'Rendez-vous' }} />
-        <Stack.Screen name="appointment/new" options={{ headerShown: true, title: 'Nouveau rendez-vous', presentation: 'modal' }} />
+      </Stack.Protected>
+      <Stack.Protected guard={!!user && role === 'admin'}>
+        <Stack.Screen name="admin/services" options={{ headerShown: true, title: 'Services & produits' }} />
+        <Stack.Screen name="admin/coiffeurs" options={{ headerShown: true, title: 'Coiffeurs' }} />
+        <Stack.Screen name="admin/utilisateurs" options={{ headerShown: true, title: 'Utilisateurs' }} />
       </Stack.Protected>
       <Stack.Protected guard={!!user && role === 'client'}>
         <Stack.Screen name="(client)" />
+        <Stack.Screen name="reserver" options={{ headerShown: true, title: 'Réserver' }} />
       </Stack.Protected>
       <Stack.Protected guard={!user}>
         <Stack.Screen name="(auth)" />

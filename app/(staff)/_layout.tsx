@@ -1,19 +1,11 @@
-import { useAuth } from '@/hooks/useAuth';
+import { usePendingReservations } from '@/hooks/useReservations';
 import { colors } from '@/lib/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
-import { Pressable } from 'react-native';
 
-function LogoutButton() {
-  const { logout } = useAuth();
-  return (
-    <Pressable onPress={() => logout()} hitSlop={12} style={{ marginRight: 16 }}>
-      <Ionicons name="log-out-outline" size={24} color={colors.text} />
-    </Pressable>
-  );
-}
+export default function StaffTabsLayout() {
+  const { reservations } = usePendingReservations();
 
-export default function TabsLayout() {
   return (
     <Tabs
       screenOptions={{
@@ -22,25 +14,35 @@ export default function TabsLayout() {
         headerStyle: { backgroundColor: colors.background },
         headerTintColor: colors.text,
         tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border },
-        headerRight: () => <LogoutButton />,
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Agenda',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="calendar-outline" size={size} color={color} />
-          ),
+          title: 'Planning',
+          tabBarIcon: ({ color, size }) => <Ionicons name="calendar-outline" size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="panier"
+        options={{
+          title: 'Valider',
+          tabBarBadge: reservations.length > 0 ? reservations.length : undefined,
+          tabBarIcon: ({ color, size }) => <Ionicons name="checkmark-done-outline" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="clients"
         options={{
           title: 'Clients',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="people-outline" size={size} color={color} />
-          ),
+          tabBarIcon: ({ color, size }) => <Ionicons name="people-outline" size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="profil"
+        options={{
+          title: 'Profil',
+          tabBarIcon: ({ color, size }) => <Ionicons name="person-outline" size={size} color={color} />,
         }}
       />
     </Tabs>

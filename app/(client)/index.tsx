@@ -1,12 +1,13 @@
 import CatalogCard from '@/components/CatalogCard';
 import { useCart } from '@/hooks/useCart';
-import { SERVICES } from '@/lib/catalog';
+import { useCatalog } from '@/hooks/useCatalog';
 import { colors } from '@/lib/theme';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 export default function AccueilScreen() {
-  const { addService } = useCart();
-  const featured = SERVICES.filter((s) => s.featured);
+  const { addItem } = useCart();
+  const { services, loading } = useCatalog();
+  const featured = services.filter((s) => s.featured);
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 32 }}>
@@ -15,40 +16,46 @@ export default function AccueilScreen() {
         <Text style={styles.title}>Salon Manager</Text>
       </View>
 
-      {featured.length > 0 && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Offres du moment</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hList}>
-            {featured.map((s) => (
-              <CatalogCard
-                key={s.id}
-                name={s.name}
-                photoUrl={s.photoUrl}
-                price={s.price}
-                durationMinutes={s.durationMinutes}
-                size="large"
-                onAdd={() => addService(s)}
-              />
-            ))}
-          </ScrollView>
-        </View>
-      )}
+      {loading ? (
+        <ActivityIndicator style={{ marginTop: 40 }} color={colors.primary} />
+      ) : (
+        <>
+          {featured.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Offres du moment</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hList}>
+                {featured.map((s) => (
+                  <CatalogCard
+                    key={s.id}
+                    name={s.name}
+                    photoUrl={s.photoUrl}
+                    price={s.price}
+                    durationMinutes={s.durationMinutes}
+                    size="large"
+                    onAdd={() => addItem(s)}
+                  />
+                ))}
+              </ScrollView>
+            </View>
+          )}
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Nos services</Text>
-        <View style={styles.grid}>
-          {SERVICES.map((s) => (
-            <CatalogCard
-              key={s.id}
-              name={s.name}
-              photoUrl={s.photoUrl}
-              price={s.price}
-              durationMinutes={s.durationMinutes}
-              onAdd={() => addService(s)}
-            />
-          ))}
-        </View>
-      </View>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Nos services</Text>
+            <View style={styles.grid}>
+              {services.map((s) => (
+                <CatalogCard
+                  key={s.id}
+                  name={s.name}
+                  photoUrl={s.photoUrl}
+                  price={s.price}
+                  durationMinutes={s.durationMinutes}
+                  onAdd={() => addItem(s)}
+                />
+              ))}
+            </View>
+          </View>
+        </>
+      )}
     </ScrollView>
   );
 }

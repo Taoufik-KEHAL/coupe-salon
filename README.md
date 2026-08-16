@@ -1,15 +1,16 @@
 # Salon Manager
 
-Application Android (React Native / Expo) pour un salon de coiffure, avec deux espaces selon le rôle choisi à l'inscription :
-- **Coiffeur(se)** : gestion des fiches clients et de l'agenda des rendez-vous.
-- **Client(e)** : vitrine des services et produits avec panier (paiement sur place, pas de paiement en ligne).
+Application Android (React Native / Expo) pour un salon de coiffure, avec trois rôles :
+- **Client** : parcourt les services/produits, réserve un créneau, gère son panier (paiement sur place), consulte ses réservations, laisse un avis.
+- **Coiffeur** : consulte le planning partagé (tous les coiffeurs, temps réel), valide les paniers des clients, consulte la liste des clients.
+- **Administrateur** : hérite de tout ce que peut faire un coiffeur, plus la gestion des services/produits, des coiffeurs et des rôles utilisateurs.
 
-Synchronisation cloud via Firebase.
+Backend Firebase : Authentication (e-mail/mot de passe) + Firestore (temps réel).
 
 ## Stack
 
 - **React Native + Expo** (SDK 57, Expo Router, TypeScript)
-- **Firebase** : Authentication (e-mail/mot de passe) + Firestore (base de données temps réel)
+- **Firebase** : Authentication + Firestore. Pas de Cloud Functions (voir plus bas) — la garantie "premier arrivé, premier servi" sur les créneaux est assurée par une **transaction Firestore côté client** (`runTransaction`), sécurisée par les règles Firestore.
 
 ## Mise en route
 
@@ -19,21 +20,23 @@ Synchronisation cloud via Firebase.
 npm install
 ```
 
-### 2. Créer un projet Firebase
+### 2. Configurer Firebase
 
-1. Va sur [console.firebase.google.com](https://console.firebase.google.com) et crée un nouveau projet.
-2. Dans **Build > Authentication**, active le fournisseur **E-mail/Mot de passe**.
-3. Dans **Build > Firestore Database**, crée une base (mode production).
-4. Ajoute les règles de sécurité du fichier [`firestore.rules`](./firestore.rules) (chaque utilisateur ne voit que ses propres données).
-5. Dans **Paramètres du projet > Général**, ajoute une application **Web** (icône `</>`) — c'est le SDK web qui est utilisé ici, y compris depuis l'app Android. Copie la config générée.
+1. Crée un projet sur [console.firebase.google.com](https://console.firebase.google.com), active **Authentication** (e-mail/mot de passe) et **Firestore**.
+2. Ajoute une application **Web** (icône `</>`) — c'est le SDK web qui est utilisé ici, y compris depuis l'app Android.
+3. Copie `.env.example` vers `.env` et renseigne les valeurs de la config Firebase.
+4. Déploie les règles de sécurité :
+   ```bash
+   npx firebase-tools login
+   npx firebase-tools deploy --only firestore:rules --project <ton-project-id>
+   ```
 
-### 3. Configurer les variables d'environnement
+### 3. Créer le premier administrateur
 
-Copie `.env.example` vers `.env` et renseigne les valeurs récupérées à l'étape précédente :
-
-```bash
-cp .env.example .env
-```
+Aucun rôle `admin` n'est auto-attribuable depuis l'app (par sécurité) — un admin ne s'obtient que par promotion depuis l'écran "Gestion des utilisateurs" d'un admin existant. Pour le tout premier admin :
+1. Crée un compte normalement dans l'app (rôle "coiffeur" par exemple).
+2. Dans la console Firebase → Firestore → collection `users` → trouve le document de ce compte (son UID) → modifie le champ `role` à `admin`.
+3. Reconnecte-toi dans l'app : tu as maintenant accès à Profil → Administration.
 
 ### 4. Lancer l'application
 
@@ -41,62 +44,80 @@ cp .env.example .env
 npx expo start
 ```
 
-Scanne le QR code avec l'app **Expo Go** (Android) pour tester directement sur ton téléphone — aucune installation d'Android Studio n'est nécessaire pour le développement.
+Scanne le QR code avec **Expo Go** (Android) pour tester sur ton téléphone.
+
+## Modèle de données Firestore
+
+| Collection | Clé | Contenu |
+|---|---|---|
+| `users` | uid | `email`, `role` (`client`\|`coiffeur`\|`admin`), `createdAt` |
+| `clients` | uid | `name`, `phone`, `notes`, `createdAt` — profil étendu d'un compte client |
+| `coiffeurs` | uid | `displayName`, `email`, `workingHours` (`{start,end}`), `active` |
+| `services_produits` | auto | `type` (`service`\|`produit`), `name`, `photoUrl`, `price`, `durationMinutes?`, `featured?` |
+| `creneaux` | `{coiffeurId}_{date}_{HH:mm}` | `coiffeurId`, `date`, `time`, `status: 'reserve'`, `reservationId` — **un créneau libre n'a pas de document** (voir [lib/slots.ts](lib/slots.ts)) |
+| `reservations` | auto | `clientId`, `coiffeurId`, `date`, `startTime`, `slotIds[]`, `items[]`, `total`, `status`, `createdAt` |
+| `reviews` | auto | `reservationId`, `clientId`, `coiffeurId`, `rating`, `comment`, `createdAt` |
+
+### Statuts d'une réservation
+
+`confirmee` (créée) → `en_attente` (client arrivé au salon, marqué par le coiffeur) → `en_cours` (panier validé, service en cours) → `terminee`. `annulee` possible depuis `confirmee`/`en_attente` (par le client ou le staff).
+
+## Concurrence sur les créneaux — sans Cloud Functions
+
+Le cahier des charges demandait une Cloud Function callable avec `runTransaction` pour garantir qu'un créneau ne soit jamais réservé deux fois. **Ce projet n'utilise pas de Cloud Functions** (elles nécessitent le plan payant Firebase "Blaze" — carte bancaire requise même si l'usage reste gratuit — ce qui a été explicitement écarté).
+
+À la place : [hooks/useSlots.ts](hooks/useSlots.ts) exécute la transaction directement depuis le client avec `runTransaction`, et [firestore.rules](firestore.rules) empêche toute écriture directe qui contournerait la logique de réservation :
+- un document `creneaux/{id}` ne peut être **créé** que si la réservation qu'il référence existe déjà (créée dans la même transaction) et appartient à l'auteur de la requête ;
+- il ne peut jamais être **mis à jour** (seulement créé ou supprimé) — impossible donc de "voler" un créneau déjà pris.
+
+Comme une transaction Firestore relit les documents au moment du commit, si deux clients tentent de réserver le même créneau, seule la première transaction committée réussit ; la seconde échoue proprement côté client avec une erreur `SlotUnavailableError`, sans jamais écrire de double réservation. C'est une garantie plus faible qu'une Cloud Function (un client qui modifierait l'app pourrait théoriquement contourner certaines vérifications), mais suffisante pour ce contexte et sans coût d'infrastructure.
 
 ## Structure du projet
 
 ```
 app/
-  (auth)/login.tsx          # Connexion / création de compte (+ choix du rôle)
-  (staff)/index.tsx          # [Coiffeur(se)] Agenda des rendez-vous
-  (staff)/clients.tsx        # [Coiffeur(se)] Liste des clients
-  client/[id].tsx            # [Coiffeur(se)] Fiche client + historique
-  client/new.tsx             # [Coiffeur(se)] Ajout d'un client
-  appointment/[id].tsx       # [Coiffeur(se)] Détail / édition d'un rendez-vous
-  appointment/new.tsx        # [Coiffeur(se)] Ajout d'un rendez-vous
-  (client)/index.tsx         # [Client(e)] Accueil — vitrine des services
-  (client)/boutique.tsx      # [Client(e)] Produits en vente
-  (client)/panier.tsx        # [Client(e)] Panier (sans paiement en ligne)
-  (client)/contact.tsx       # [Client(e)] Coordonnées du salon
-  (client)/profil.tsx        # [Client(e)] Profil / déconnexion
+  (auth)/login.tsx           # Connexion / inscription (+ choix client/coiffeur)
+  (client)/                   # Espace client (5 onglets)
+    index.tsx                   # Accueil — vitrine des services
+    boutique.tsx                 # Produits
+    panier.tsx                    # Panier local (avant réservation)
+    reservations.tsx               # Mes réservations + avis
+    profil.tsx                      # Compte + contact salon + déconnexion
+  reserver.tsx                # Flow de réservation (coiffeur → date → heure → confirmation)
+  (staff)/                     # Espace coiffeur/admin (4 onglets)
+    index.tsx                    # Planning partagé, temps réel
+    panier.tsx                     # Valider le panier (en_attente → en_cours → terminee)
+    clients.tsx                     # Liste des clients
+    profil.tsx                       # Compte + liens Administration (si admin)
+  client/[id].tsx              # Fiche client (staff) — historique de réservations
+  admin/                        # Écrans réservés au rôle admin
+    services.tsx                    # CRUD services & produits
+    coiffeurs.tsx                     # Horaires, activer/désactiver un coiffeur
+    utilisateurs.tsx                   # Changer le rôle d'un compte
 hooks/
-  useAuth.tsx               # Contexte d'authentification Firebase + rôle
-  useClients.ts             # CRUD + écoute temps réel des clients
-  useAppointments.ts        # CRUD + écoute temps réel des rendez-vous
-  useCart.ts                # Panier client (état local, non persisté)
+  useAuth.tsx                 # Auth Firebase + rôle (users/{uid})
+  useCatalog.ts                # services_produits (+ seed initial)
+  useCoiffeurs.ts               # coiffeurs
+  useSlots.ts                    # Disponibilité + transaction de réservation atomique
+  useReservations.ts               # Planning, mes réservations, annulation
+  useReviews.ts                      # Avis
+  useUsers.ts                          # Gestion des rôles (admin)
+  useCart.tsx                            # Panier local (React Context)
 lib/
-  firebase.ts                # Initialisation Firebase (Auth + Firestore)
-  theme.ts                   # Palette de couleurs de l'app
-  catalog.ts                 # Services et produits (données locales + photos Unsplash)
-  salonInfo.ts                # Coordonnées du salon (à adapter)
+  firebase.ts, theme.ts, salonInfo.ts, catalog.ts (seed), slots.ts (logique créneaux)
 ```
 
-Le rôle (`client` ou `staff`) est stocké dans Firestore (`users/{uid}`) et choisi lors de l'inscription ; il détermine quel espace s'affiche après connexion.
-
 ## Générer un APK (EAS Build)
-
-L'APK est compilé dans le cloud via [EAS Build](https://expo.dev/eas), sans besoin d'Android Studio local.
-
-### En local
 
 ```bash
 npx eas-cli build --platform android --profile preview
 ```
 
-Le lien de téléchargement de l'APK s'affiche à la fin du build (aussi visible sur [expo.dev](https://expo.dev/accounts/tfkkehal/projects/coupe-salon/builds)).
+Ou depuis GitHub Actions : onglet **Actions** → **EAS Build Android APK** → **Run workflow** (nécessite le secret `EXPO_TOKEN`, voir la configuration existante).
 
-### Depuis GitHub Actions
+## Ambiguïtés tranchées par défaut (à ajuster si besoin)
 
-Le workflow [`.github/workflows/eas-build.yml`](.github/workflows/eas-build.yml) permet de lancer un build depuis l'onglet **Actions** du repo (bouton **Run workflow**), sans rien installer localement.
-
-Configuration requise (une seule fois) :
-1. Crée un token d'accès Expo : [expo.dev/accounts/tfkkehal/settings/access-tokens](https://expo.dev/accounts/tfkkehal/settings/access-tokens) → **Create token** (donne-lui un nom du type `github-actions`)
-2. Ajoute-le comme secret du repo GitHub : **Settings > Secrets and variables > Actions > New repository secret**, nom `EXPO_TOKEN`, colle le token
-3. Les variables Firebase (`EXPO_PUBLIC_FIREBASE_*`) sont déjà configurées côté EAS (environnements `preview`/`production`, visibles sur `eas env:list preview`) — pas besoin de les redéfinir dans GitHub.
-
-Ensuite : onglet **Actions** → **EAS Build Android APK** → **Run workflow**.
-
-## Notes
-
-- Les données sont scopées par utilisateur (`ownerId`) : si plusieurs employés doivent partager les mêmes clients/rendez-vous, il faudra faire évoluer le modèle de données (ex. `salonId` partagé).
-- L'icône et le splash screen sont ceux par défaut d'Expo — à remplacer dans `assets/` selon l'identité visuelle du salon.
+- **Fenêtre de réservation** : le client ne peut choisir une date que dans les 14 prochains jours (constante `DAYS_AHEAD` dans [app/reserver.tsx](app/reserver.tsx)).
+- **Granularité des créneaux** : 15 minutes (`SLOT_GRANULARITY_MINUTES` dans [types/index.ts](types/index.ts)) ; la durée d'une réservation occupe autant de créneaux consécutifs que nécessaire selon la durée totale des services choisis.
+- **Avis** : un client peut en laisser un uniquement depuis une réservation `terminee`, une seule fois affiché par réservation dans l'UI (pas de blocage strict côté règles contre les doublons).
+- **FCM (notifications push)** : hors scope pour cette version — nécessiterait un contexte serveur (Cloud Functions) pour envoyer les notifications en toute sécurité.

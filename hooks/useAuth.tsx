@@ -10,17 +10,45 @@ import {
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 
+// Rôle choisissable librement à l'inscription. 'admin' n'est jamais
+// auto-attribuable — il ne s'obtient que par promotion depuis l'espace
+// "Gestion des utilisateurs" d'un admin existant.
+export type RegistrableRole = Extract<UserRole, 'client' | 'coiffeur'>;
+
 type AuthContextValue = {
   user: User | null;
   role: UserRole | null;
   initializing: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, role: UserRole) => Promise<void>;
+  register: (email: string, password: string, role: RegistrableRole) => Promise<void>;
   logout: () => Promise<void>;
-  setUserRole: (role: UserRole) => Promise<void>;
+  setUserRole: (role: RegistrableRole) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+
+const VALID_ROLES: UserRole[] = ['client', 'coiffeur', 'admin'];
+
+// Défend contre une valeur de rôle obsolète en base (ex. l'ancien rôle
+// 'staff' d'une version précédente) — traitée comme "pas de rôle" plutôt que
+// de bloquer silencieusement l'utilisateur sur un écran vide.
+function sanitizeRole(value: unknown): UserRole | null {
+  return VALID_ROLES.includes(value as UserRole) ? (value as UserRole) : null;
+}
+
+async function createRoleProfile(uid: string, email: string, role: UserRole) {
+  await setDoc(doc(db, 'users', uid), { email, role, createdAt: Date.now() });
+  if (role === 'client') {
+    await setDoc(doc(db, 'clients', uid), { name: email, phone: '', notes: '', createdAt: Date.now() });
+  } else if (role === 'coiffeur') {
+    await setDoc(doc(db, 'coiffeurs', uid), {
+      displayName: email,
+      email,
+      workingHours: { start: '09:00', end: '19:00' },
+      active: true,
+    });
+  }
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -38,7 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (nextUser) {
         try {
           const snap = await getDoc(doc(db, 'users', nextUser.uid));
-          const fetchedRole = snap.data()?.role as UserRole | undefined;
+          const fetchedRole = sanitizeRole(snap.data()?.role);
           setRole(fetchedRole ?? pendingRoleRef.current ?? null);
         } catch (e) {
           console.error('Failed to fetch user role', e);
@@ -63,11 +91,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       pendingRoleRef.current = role;
       try {
         const credential = await createUserWithEmailAndPassword(auth, email, password);
-        await setDoc(doc(db, 'users', credential.user.uid), {
-          email,
-          role,
-          createdAt: Date.now(),
-        });
+        await createRoleProfile(credential.user.uid, email, role);
         setRole(role);
       } finally {
         pendingRoleRef.current = null;
@@ -78,8 +102,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     setUserRole: async (nextRole) => {
       if (!user) return;
-      await setDoc(doc(db, 'users', user.uid), { email: user.email, role: nextRole, createdAt: Date.now() }, { merge: true });
-      setRole(nextRole);
+      pendingRoleRef.current = nextRole;
+      try {
+        await createRoleProfile(user.uid, user.email ?? '', nextRole);
+        setRole(nextRole);
+      } finally {
+        pendingRoleRef.current = null;
+      }
     },
   };
 

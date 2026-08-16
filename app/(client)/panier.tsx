@@ -1,17 +1,56 @@
+import { useAuth } from '@/hooks/useAuth';
 import { useCart } from '@/hooks/useCart';
+import { createProductOnlyOrder } from '@/hooks/useReservations';
 import { colors } from '@/lib/theme';
 import { Ionicons } from '@expo/vector-icons';
-import { Alert, FlatList, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import { useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Image,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 
 export default function PanierScreen() {
-  const { items, total, increment, decrement, remove, clear } = useCart();
+  const { user } = useAuth();
+  const { items, total, hasServices, increment, decrement, remove, clear } = useCart();
+  const router = useRouter();
+  const [submitting, setSubmitting] = useState(false);
 
-  const validate = () => {
-    Alert.alert(
-      'Commande enregistrée',
-      'Présente-toi au salon avec ce récapitulatif — le règlement se fait sur place.',
-      [{ text: 'OK', onPress: clear }]
-    );
+  const validate = async () => {
+    if (hasServices) {
+      router.push('/reserver');
+      return;
+    }
+    if (!user) return;
+    setSubmitting(true);
+    try {
+      await createProductOnlyOrder({
+        clientId: user.uid,
+        clientName: user.email ?? '',
+        items: items.map((i) => ({
+          id: i.id,
+          kind: i.kind,
+          name: i.name,
+          price: i.price,
+          durationMinutes: i.durationMinutes,
+          quantity: i.quantity,
+        })),
+        total,
+      });
+      Alert.alert(
+        'Commande enregistrée',
+        'Présente-toi au salon avec ce récapitulatif — le règlement se fait sur place.',
+        [{ text: 'OK', onPress: clear }]
+      );
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (items.length === 0) {
@@ -57,8 +96,14 @@ export default function PanierScreen() {
           <Text style={styles.totalLabel}>Total</Text>
           <Text style={styles.totalValue}>{total} DHS</Text>
         </View>
-        <Pressable style={styles.validateButton} onPress={validate}>
-          <Text style={styles.validateButtonText}>Valider la commande</Text>
+        <Pressable style={styles.validateButton} onPress={validate} disabled={submitting}>
+          {submitting ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.validateButtonText}>
+              {hasServices ? 'Choisir un créneau' : 'Valider la commande'}
+            </Text>
+          )}
         </Pressable>
         <Text style={styles.note}>Paiement sur place au salon — aucun paiement en ligne.</Text>
       </View>

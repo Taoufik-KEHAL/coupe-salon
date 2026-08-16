@@ -1,6 +1,5 @@
 import { colors } from '@/lib/theme';
-import { useAuth } from '@/hooks/useAuth';
-import type { UserRole } from '@/types';
+import { useAuth, type RegistrableRole } from '@/hooks/useAuth';
 import { useState } from 'react';
 import {
   ActivityIndicator,
@@ -33,7 +32,7 @@ function friendlyError(code: string): string {
 export default function LoginScreen() {
   const { login, register } = useAuth();
   const [mode, setMode] = useState<'login' | 'register'>('login');
-  const [role, setRole] = useState<UserRole>('client');
+  const [role, setRole] = useState<RegistrableRole>('client');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -66,7 +65,7 @@ export default function LoginScreen() {
     >
       <View style={styles.header}>
         <Text style={styles.title}>Salon Manager</Text>
-        <Text style={styles.subtitle}>Gestion des clients et rendez-vous</Text>
+        <Text style={styles.subtitle}>Réservation de prestations et gestion du salon</Text>
       </View>
 
       <View style={styles.form}>
@@ -81,10 +80,10 @@ export default function LoginScreen() {
               </Text>
             </Pressable>
             <Pressable
-              style={[styles.roleChip, role === 'staff' && styles.roleChipActive]}
-              onPress={() => setRole('staff')}
+              style={[styles.roleChip, role === 'coiffeur' && styles.roleChipActive]}
+              onPress={() => setRole('coiffeur')}
             >
-              <Text style={[styles.roleChipText, role === 'staff' && styles.roleChipTextActive]}>
+              <Text style={[styles.roleChipText, role === 'coiffeur' && styles.roleChipTextActive]}>
                 Je suis coiffeur(se)
               </Text>
             </Pressable>
